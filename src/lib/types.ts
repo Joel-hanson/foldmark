@@ -1,5 +1,15 @@
 export type Shape = "accordion" | "corner";
 
+/** How many accordion panels (plus one final finish fold). */
+export type AccordionPanels = 3 | 4 | 5 | 6;
+
+/**
+ * Accordion fold direction:
+ * - vertical — fan-fold top→bottom; landscape cover, no half-fold
+ * - sideways — fan-fold left→right, then one height fold
+ */
+export type AccordionDirection = "vertical" | "sideways";
+
 export type PatternId = "none" | "stripes" | "polka" | "chevron" | "swirls" | "waves" | "lattice";
 
 export type MotifId =
@@ -47,6 +57,10 @@ export type DesignState = {
   bgImage: string | null;
   fontId: FontId;
   fontSize: FontSizeId;
+  /** Accordion only — fewer panels means wider folds / fewer creases. */
+  accordionPanels: AccordionPanels;
+  /** Accordion only — fan-fold down the page (easier) or across. */
+  accordionDirection: AccordionDirection;
   paperSize: PaperSize;
   printMode: PrintMode;
 };

@@ -1,8 +1,26 @@
-import type { FontSizeId, MotifId, PaperSize, PatternId, Shape } from "./types";
+import type {
+  AccordionDirection,
+  AccordionPanels,
+  FontSizeId,
+  MotifId,
+  PaperSize,
+  PatternId,
+  Shape,
+} from "./types";
 import { PAGE_SIZE } from "./paper";
 import { fitWrappedText, wrapBookmarkText } from "./textWrap";
 import { FONT_SIZE_POINTS } from "./bookmarkFont";
 import { buildCoverMotif, motifHeightFactor } from "./motifs";
+
+/** Default panel count — ~1.5in panels along the fan-fold axis, clamped to 3–6. */
+export function suggestedAccordionPanels(
+  paperSize: PaperSize,
+  direction: AccordionDirection = "vertical",
+): AccordionPanels {
+  const page = PAGE_SIZE[paperSize];
+  const span = direction === "vertical" ? page.h : page.w;
+  return Math.min(6, Math.max(3, Math.round(span / 108))) as AccordionPanels;
+}
 
 /**
  * Every coordinate below is in a top-left-origin, y-down space, sized exactly
@@ -72,7 +90,7 @@ export type DrawOp =
       italic?: boolean;
       color: "ink" | "secondary" | "mark" | "accent";
       maxWidth?: number;
-      align?: "left" | "center";
+      align?: "left" | "center" | "right";
     };
 
 export type UnitPlan = {
@@ -429,11 +447,16 @@ function buildCornerPlan(
 }
 
 /**
- * A whole-sheet accordion fold: no cutting at all. Evenly spaced vertical
- * creases fan-fold the page down to a narrow, many-layered strip, then one
- * final crease halves its height — the result is a small, genuinely thick
- * bookmark made of nothing but folded paper. Fold lines are numbered in the
- * order they should be made.
+ * A whole-sheet accordion fold: no cutting at all.
+ *
+ * Vertical (default): horizontal creases fan-fold the page top→bottom into a
+ * thick landscape strip. Cover prints full-width on the bottom panel — fold
+ * and use, no extra half-fold.
+ *
+ * Sideways: vertical creases fan-fold left→right, then one horizontal crease
+ * halves the height.
+ *
+ * Fold lines are numbered in the order they should be made.
  */
 function buildAccordionPlan(
   w: number,
@@ -443,34 +466,37 @@ function buildAccordionPlan(
   surface: SurfaceInput,
   fontSize: FontSizeId,
   motif: MotifId,
+  panelCount: AccordionPanels,
+  direction: AccordionDirection,
 ): DrawOp[] {
-  // Aim for panels roughly 1.5in wide — narrow enough to feel like a
-  // bookmark, wide enough that folding by hand stays easy.
-  const panelCount = Math.min(6, Math.max(3, Math.round(w / 108)));
-  const panelW = w / panelCount;
+  const vertical = direction === "vertical";
   const midY = h / 2;
-  const cellX0 = (panelCount - 1) * panelW;
-  const cellW = panelW;
+  const panelH = h / panelCount;
+  const panelW = w / panelCount;
+
+  // Vertical: full-width landscape cover on the bottom panel.
+  // Sideways: tall cover on the top-right panel half.
+  const cellX0 = vertical ? 0 : (panelCount - 1) * panelW;
+  const cellY0 = vertical ? (panelCount - 1) * panelH : 0;
+  const cellW = vertical ? w : panelW;
+  const cellH = vertical ? panelH : midY;
   const cellMidX = cellX0 + cellW / 2;
+  const cellMidY = cellY0 + cellH / 2;
   const sizes = preferredSizes(fontSize, title, "accordion");
 
-  // Keep type clear of the vertical crease (left of cover) and the final
-  // horizontal crease — scale with font size so XL still has breathing room.
-  const foldClearX = Math.max(18, sizes.title * 0.95);
-  const foldClearY = Math.max(28, sizes.title * 1.35);
-  const topClear = Math.max(52, sizes.title * 2.1);
+  const foldClearX = Math.max(14, Math.min(cellW * 0.08, sizes.title * 0.95));
+  const foldClearY = Math.max(12, Math.min(cellH * 0.16, sizes.title * 1.0));
+  const edgeClear = Math.max(22, Math.min(cellH * 0.22, sizes.title * 1.35));
 
   const ops: DrawOp[] = [{ kind: "rect", x: 0, y: 0, w, h, fill: "paper", stroke: "ink" }];
 
-  // Patterns tile the whole sheet; a photo lives only on the cover face so
-  // the fold diagram stays clean and the image isn't shredded across creases.
   if (surface.bgImage) {
     ops.push({
       kind: "image",
       x: cellX0,
-      y: 0,
+      y: cellY0,
       w: cellW,
-      h: midY,
+      h: cellH,
       href: surface.bgImage,
       opacity: 1,
     });
@@ -478,63 +504,140 @@ function buildAccordionPlan(
     ops.push(...buildPatternOps(surface.pattern, w, h));
   }
 
-  // Fan-fold creases (vertical), numbered 1..panelCount-1 in fold order.
-  for (let i = 1; i < panelCount; i++) {
-    const x = i * panelW;
-    ops.push({ kind: "line", x1: x, y1: 8, x2: x, y2: h - 8, stroke: "mark", dashed: true });
+  if (vertical) {
+    // Fan-fold only — no final half-fold. Cover is already landscape-ready.
+    for (let i = 1; i < panelCount; i++) {
+      const y = i * panelH;
+      ops.push({ kind: "line", x1: 8, y1: y, x2: w - 8, y2: y, stroke: "mark", dashed: true });
+      ops.push({
+        kind: "text",
+        x: 12,
+        y: y - 6,
+        text: String(i),
+        size: 9,
+        color: "mark",
+        align: "left",
+      });
+    }
+  } else {
+    for (let i = 1; i < panelCount; i++) {
+      const x = i * panelW;
+      ops.push({ kind: "line", x1: x, y1: 8, x2: x, y2: h - 8, stroke: "mark", dashed: true });
+      ops.push({
+        kind: "text",
+        x: x + 6,
+        y: 20,
+        text: String(i),
+        size: 9,
+        color: "mark",
+        align: "left",
+      });
+    }
+    ops.push({
+      kind: "line",
+      x1: 6,
+      y1: midY,
+      x2: w - 6,
+      y2: midY,
+      stroke: "accent",
+      dashed: true,
+      weight: 1.6,
+    });
     ops.push({
       kind: "text",
-      x: x + 6,
-      y: 20,
-      text: String(i),
+      x: 10,
+      y: midY - 8,
+      text: String(panelCount),
       size: 9,
-      color: "mark",
+      bold: true,
+      color: "accent",
       align: "left",
     });
   }
 
-  // Final crease (horizontal), heavier and last in the fold order.
-  ops.push({ kind: "line", x1: 6, y1: midY, x2: w - 6, y2: midY, stroke: "accent", dashed: true, weight: 1.6 });
-  ops.push({
-    kind: "text",
-    x: 10,
-    y: midY - 8,
-    text: String(panelCount),
-    size: 9,
-    bold: true,
-    color: "accent",
-    align: "left",
-  });
+  const hasMotif = motif !== "none";
+  // Landscape cover: motif sits beside the words so the short strip stays readable.
+  if (vertical) {
+    const motifScale = Math.min(cellH * 0.42, 36);
+    const motifSlot = hasMotif ? motifScale * 1.7 : 0;
+    const padX = Math.max(24, foldClearX);
+    const textLeft = cellX0 + padX + motifSlot;
+    const textRight = cellX0 + cellW - padX;
+    const textCx = (textLeft + textRight) / 2;
+    const copyMax = Math.max(48, textRight - textLeft);
+    const bandTop = cellY0 + edgeClear;
+    const bandBot = cellY0 + cellH - foldClearY;
 
-  // Soft paper panel behind the cover type — inset from the fold lines.
+    ops.push({
+      kind: "rect",
+      x: cellX0 + padX * 0.45,
+      y: cellY0 + Math.max(10, foldClearY * 0.45),
+      w: cellW - padX * 0.9,
+      h: cellH - Math.max(20, foldClearY * 0.9),
+      fill: "paper",
+      opacity: surface.bgImage ? 0.55 : 0.72,
+    });
+
+    ops.push(...coverFlourish(textCx, bandTop - sizes.title * 0.55, Math.min(40, copyMax * 0.18)));
+
+    pushCoverCopy(ops, {
+      cx: textCx,
+      top: bandTop,
+      bottom: bandBot - (hasMotif ? 0 : sizes.title * 0.15),
+      title,
+      subtitle,
+      titleMaxWidth: copyMax,
+      subMaxWidth: copyMax,
+      preferredTitleSize: sizes.title,
+      subtitleSize: sizes.subtitle,
+    });
+
+    if (hasMotif) {
+      const motifCx = cellX0 + padX + motifScale * 0.65;
+      ops.push(...buildCoverMotif(motif, motifCx, cellMidY, motifScale));
+    }
+
+    ops.push(...coverFlourish(textCx, bandBot + sizes.title * 0.15, Math.min(28, copyMax * 0.12)));
+    return ops;
+  }
+
+  // Sideways cover (tall narrow panel) — stacked layout.
+  const bandTop = cellY0 + edgeClear;
+  const bandBot = cellY0 + cellH - foldClearY;
+  const panelTop = bandTop - sizes.title * 0.45;
+  const panelBot = Math.min(cellY0 + cellH - 8, bandBot + Math.max(10, sizes.title * 0.3));
   ops.push({
     kind: "rect",
     x: cellX0 + foldClearX * 0.55,
-    y: topClear - sizes.title * 0.6,
+    y: panelTop,
     w: cellW - foldClearX * 1.1,
-    h: midY - foldClearY - (topClear - sizes.title * 0.6),
+    h: Math.max(20, panelBot - panelTop),
     fill: "paper",
     opacity: surface.bgImage ? 0.55 : 0.72,
   });
 
-  ops.push(...coverFlourish(cellMidX, Math.max(28, topClear - sizes.title * 1.15), Math.min(34, cellW * 0.28)));
+  ops.push(
+    ...coverFlourish(
+      cellMidX,
+      Math.max(cellY0 + 16, bandTop - sizes.title * 0.85),
+      Math.min(34, cellW * 0.22),
+    ),
+  );
 
-  const motifScale = Math.min(cellW * 0.34, 28);
-  const hasMotif = motif !== "none";
+  const motifScale = Math.min(cellW * 0.34, cellH * 0.22, 28);
   const motifH = hasMotif ? motifScale * motifHeightFactor(motif) : 0;
-  const gapTextToMotif = hasMotif ? Math.max(22, sizes.title * 0.75) : 0;
-  const gapMotifToDivider = hasMotif ? Math.max(16, motifScale * 0.4) : Math.max(12, sizes.title * 0.55);
-  const bottomFlourishY = midY - Math.max(16, foldClearY * 0.45);
-  // Keep type in the upper band so the motif + bottom divider have room underneath.
+  const gapTextToMotif = hasMotif ? Math.max(14, sizes.title * 0.55) : 0;
+  const gapMotifToDivider = hasMotif ? Math.max(10, motifScale * 0.35) : Math.max(8, sizes.title * 0.4);
+  const bottomFlourishY = Math.min(bandBot, cellY0 + cellH - Math.max(12, foldClearY * 0.35));
   const copyBottom = Math.max(
-    topClear + sizes.title * 2,
+    bandTop + sizes.title * 1.6,
     bottomFlourishY - gapMotifToDivider - motifH - gapTextToMotif,
   );
 
   const copyMax = Math.max(36, cellW - foldClearX * 2);
   const lastY = pushCoverCopy(ops, {
     cx: cellMidX,
-    top: topClear,
+    top: bandTop,
     bottom: copyBottom,
     title,
     subtitle,
@@ -544,17 +647,16 @@ function buildAccordionPlan(
     subtitleSize: sizes.subtitle,
   });
 
-  // Motif sits below the type with a clear gap; divider anchors the bottom.
   if (hasMotif) {
     const motifTop = lastY + gapTextToMotif;
     const motifBot = bottomFlourishY - gapMotifToDivider;
-    if (motifBot - motifTop >= motifScale * 1.4) {
+    if (motifBot - motifTop >= motifScale * 1.2) {
       const motifCy = r2(motifTop + motifScale * 0.5);
       ops.push(...buildCoverMotif(motif, cellMidX, motifCy, motifScale));
     }
   }
 
-  ops.push(...coverFlourish(cellMidX, bottomFlourishY, Math.min(22, cellW * 0.2)));
+  ops.push(...coverFlourish(cellMidX, bottomFlourishY, Math.min(22, cellW * 0.16)));
 
   return ops;
 }
@@ -568,6 +670,8 @@ export function buildUnitPlan(
   bgImage?: string | null,
   fontSize: FontSizeId = "md",
   motif: MotifId = "panda",
+  accordionPanels?: AccordionPanels,
+  accordionDirection: AccordionDirection = "vertical",
 ): UnitPlan {
   const size = getUnitSize(shape, paperSize);
   const surface: SurfaceInput = { pattern, bgImage: bgImage ?? null };
@@ -580,12 +684,24 @@ export function buildUnitPlan(
       ops: buildCornerPlan(title, subtitle, surface, fontSize, motif),
     };
   }
-  const panelCount = Math.min(6, Math.max(3, Math.round(size.w / 108)));
+  const panelCount = accordionPanels ?? suggestedAccordionPanels(paperSize, accordionDirection);
+  // Vertical: fan-folds only. Sideways: fan-folds + final half-fold.
+  const foldCount = accordionDirection === "vertical" ? panelCount - 1 : panelCount;
   return {
     shape,
     size,
     cutOutline: { x: 0, y: 0, w: size.w, h: size.h },
-    foldCount: panelCount,
-    ops: buildAccordionPlan(size.w, size.h, title, subtitle, surface, fontSize, motif),
+    foldCount,
+    ops: buildAccordionPlan(
+      size.w,
+      size.h,
+      title,
+      subtitle,
+      surface,
+      fontSize,
+      motif,
+      panelCount,
+      accordionDirection,
+    ),
   };
 }

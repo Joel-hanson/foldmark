@@ -183,6 +183,9 @@ function drawOpsForUnit(
       if (op.align === "center") {
         const width = f.widthOfTextAtSize(op.text, op.size);
         x = originX + op.x - width / 2;
+      } else if (op.align === "right") {
+        const width = f.widthOfTextAtSize(op.text, op.size);
+        x = originX + op.x - width;
       }
       page.drawText(op.text, {
         x,
@@ -224,6 +227,8 @@ export async function buildBookmarkPdf(design: DesignState): Promise<Uint8Array>
     bgImage,
     design.fontSize,
     design.motif,
+    design.accordionPanels,
+    design.accordionDirection,
   );
 
   const images = new Map<string, PDFImage>();

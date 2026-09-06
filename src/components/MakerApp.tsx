@@ -2,13 +2,13 @@
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useSearchParams } from "next/navigation";
-import { PALETTES, MOTIFS, PATTERNS, PAPER_LABELS, PHRASE_PRESETS, SHAPES, getShapeInfo } from "@/lib/catalog";
+import { PALETTES, MOTIFS, PATTERNS, PAPER_LABELS, PHRASE_PRESETS, SHAPES, ACCORDION_PANEL_OPTIONS, ACCORDION_DIRECTION_OPTIONS, getShapeInfo } from "@/lib/catalog";
 import { defaultDesign, designFromQuery, designToQuery } from "@/lib/designState";
-import type { DesignState, FontId, FontSizeId, MotifId, PaperSize, PatternId } from "@/lib/types";
+import type { AccordionDirection, AccordionPanels, DesignState, FontId, FontSizeId, MotifId, PaperSize, PatternId } from "@/lib/types";
 import { MotifSwatch, PatternSwatch, SheetPreview, UnitPreview } from "@/components/BookmarkArt";
 import { resolveColors } from "@/lib/colors";
 import { computeSheet } from "@/lib/sheet";
-import { buildUnitPlan } from "@/lib/unitPlan";
+import { buildUnitPlan, suggestedAccordionPanels } from "@/lib/unitPlan";
 import { buildBookmarkPdf, downloadPdfBytes } from "@/lib/pdf";
 import { BOOKMARK_FONTS, FONT_SIZES, cssFontStack } from "@/lib/bookmarkFont";
 
@@ -92,6 +92,8 @@ export function MakerApp() {
         design.surfaceMode === "image" ? design.bgImage : null,
         design.fontSize,
         design.motif,
+        design.accordionPanels,
+        design.accordionDirection,
       ),
     [
       design.shape,
@@ -103,6 +105,8 @@ export function MakerApp() {
       design.bgImage,
       design.fontSize,
       design.motif,
+      design.accordionPanels,
+      design.accordionDirection,
     ],
   );
 
@@ -196,7 +200,53 @@ export function MakerApp() {
             ))}
           </div>
 
-          <h2 className="panel-kicker" style={{ marginTop: "1.5rem" }}>
+          {design.shape === "accordion" ? (
+            <>
+              <h2 className="panel-kicker" style={{ marginTop: "1.5rem" }}>
+                Folds
+              </h2>
+              <p className="hint" style={{ marginTop: "-0.35rem", marginBottom: "0.65rem" }}>
+                Fold down prints a landscape cover — fan-fold and you&apos;re done, no splitting in half.
+              </p>
+              <div className="size-row" role="list" aria-label="Fold direction">
+                {ACCORDION_DIRECTION_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    className="size-chip"
+                    data-active={design.accordionDirection === opt.id}
+                    role="listitem"
+                    title={opt.blurb}
+                    onClick={() =>
+                      setDesign((d) => ({
+                        ...d,
+                        accordionDirection: opt.id as AccordionDirection,
+                        accordionPanels: suggestedAccordionPanels(d.paperSize, opt.id),
+                      }))
+                    }
+                  >
+                    {opt.name}
+                  </button>
+                ))}
+              </div>
+              <div className="size-row" role="list" aria-label="Accordion fold count" style={{ marginTop: "-0.5rem" }}>
+                {ACCORDION_PANEL_OPTIONS.map((n) => (
+                  <button
+                    key={n}
+                    type="button"
+                    className="size-chip"
+                    data-active={design.accordionPanels === n}
+                    role="listitem"
+                    onClick={() => setDesign((d) => ({ ...d, accordionPanels: n as AccordionPanels }))}
+                  >
+                    {n} panels
+                  </button>
+                ))}
+              </div>
+            </>
+          ) : null}
+
+          <h2 className="panel-kicker" style={{ marginTop: design.shape === "accordion" ? 0 : "1.5rem" }}>
             Words
           </h2>
           <div className="phrase-row" role="list">
@@ -455,7 +505,9 @@ export function MakerApp() {
           </div>
           <p className="hint" style={{ textAlign: "center" }}>
             {design.shape === "accordion"
-              ? `No cutting — fan-fold lines 1–${plan.foldCount - 1}, then fold ${plan.foldCount} to finish.`
+              ? design.accordionDirection === "vertical"
+                ? `No cutting — fan-fold lines 1–${plan.foldCount} down the page, then use. Cover is already landscape.`
+                : `No cutting — fan-fold lines 1–${plan.foldCount - 1} across, then fold ${plan.foldCount} to finish.`
               : shapeInfo.howTo}
           </p>
 

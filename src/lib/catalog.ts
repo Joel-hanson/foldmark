@@ -1,4 +1,23 @@
-import type { MotifId, MotifInfo, Palette, PatternId, PatternInfo, PhrasePreset, Shape, ShapeInfo } from "./types";
+import type {
+  AccordionDirection,
+  AccordionPanels,
+  MotifId,
+  MotifInfo,
+  Palette,
+  PatternId,
+  PatternInfo,
+  PhrasePreset,
+  Shape,
+  ShapeInfo,
+} from "./types";
+
+/** Accordion fan-fold panel counts — fewer = thicker easier folds. */
+export const ACCORDION_PANEL_OPTIONS: AccordionPanels[] = [3, 4, 5, 6];
+
+export const ACCORDION_DIRECTION_OPTIONS: { id: AccordionDirection; name: string; blurb: string }[] = [
+  { id: "vertical", name: "Fold down", blurb: "Fan-fold top to bottom — cover is ready, no half-fold" },
+  { id: "sideways", name: "Fold across", blurb: "Left to right, then fold in half" },
+];
 
 export const PALETTES: Palette[] = [
   {
@@ -48,7 +67,7 @@ export const SHAPES: ShapeInfo[] = [
     id: "accordion",
     name: "Accordion fold",
     blurb: "The whole sheet, fan-folded thick. No cutting.",
-    howTo: "Fan-fold the numbered lines, then make the final fold.",
+    howTo: "Fan-fold down the numbered lines — cover is ready, no extra fold.",
   },
   {
     id: "corner",

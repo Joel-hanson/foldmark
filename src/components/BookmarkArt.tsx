@@ -19,6 +19,8 @@ type PreviewDesign = Pick<
   | "surfaceMode"
   | "fontId"
   | "fontSize"
+  | "accordionPanels"
+  | "accordionDirection"
 >;
 
 /**
@@ -125,7 +127,7 @@ function renderOps(ops: DrawOp[], colors: ResolvedColors, keyPrefix: string, fon
         fontStyle={op.italic ? "italic" : "normal"}
         fill={colors[op.color]}
         fontFamily={fontFamily}
-        textAnchor={op.align === "center" ? "middle" : "start"}
+        textAnchor={op.align === "center" ? "middle" : op.align === "right" ? "end" : "start"}
       >
         {op.text}
       </text>
@@ -203,6 +205,8 @@ export function UnitPreview({ design }: { design: PreviewDesign }) {
     surfaceImage(design),
     design.fontSize,
     design.motif,
+    design.accordionPanels,
+    design.accordionDirection,
   );
   const colors = resolveColors(design.paletteId, design.printMode);
   const fontFamily = cssFontStack(design.fontId);
@@ -233,6 +237,8 @@ export function SheetPreview({ design }: { design: PreviewDesign }) {
     surfaceImage(design),
     design.fontSize,
     design.motif,
+    design.accordionPanels,
+    design.accordionDirection,
   );
   const colors = resolveColors(design.paletteId, design.printMode);
   const fontFamily = cssFontStack(design.fontId);
