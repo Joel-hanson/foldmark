@@ -10,7 +10,15 @@ export type AccordionPanels = 3 | 4 | 5 | 6;
  */
 export type AccordionDirection = "vertical" | "sideways";
 
-export type PatternId = "none" | "stripes" | "polka" | "chevron" | "swirls" | "waves" | "lattice";
+export type PatternId =
+  | "none"
+  | "stripes"
+  | "polka"
+  | "chevron"
+  | "swirls"
+  | "waves"
+  | "lattice"
+  | "buta";
 
 export type MotifId =
   | "none"

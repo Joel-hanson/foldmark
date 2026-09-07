@@ -1,16 +1,12 @@
-import { Suspense } from "react";
 import { SiteFooter, SiteHeader } from "@/components/SiteChrome";
-import { MakerApp } from "@/components/MakerApp";
 import { MakerSkeleton } from "@/components/MakerSkeleton";
 
-export default function HomePage() {
+export default function Loading() {
   return (
     <>
       <SiteHeader />
       <main>
-        <Suspense fallback={<MakerSkeleton />}>
-          <MakerApp />
-        </Suspense>
+        <MakerSkeleton />
       </main>
       <SiteFooter />
     </>

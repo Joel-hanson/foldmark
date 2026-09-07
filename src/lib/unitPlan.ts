@@ -181,6 +181,238 @@ function pushSpiral(
   }
 }
 
+function rotPt(x: number, y: number, a: number): [number, number] {
+  const c = Math.cos(a);
+  const s = Math.sin(a);
+  return [r2(x * c - y * s), r2(x * s + y * c)];
+}
+
+/** Cubic bezier path through local points, then rotated (and optionally mirrored). */
+function rotatedCubic(
+  pts: [number, number][],
+  angle: number,
+  mirror: boolean,
+  close = false,
+): string {
+  const mapped = pts.map(([x, y]) => rotPt(mirror ? -x : x, y, angle));
+  if (mapped.length < 4 || (mapped.length - 1) % 3 !== 0) {
+    // Fallback: treat as polyline if not cubic groups.
+    const [a, ...rest] = mapped;
+    return `M ${a[0]} ${a[1]} ${rest.map(([x, y]) => `L ${x} ${y}`).join(" ")}${close ? " Z" : ""}`;
+  }
+  let d = `M ${mapped[0][0]} ${mapped[0][1]}`;
+  for (let i = 1; i < mapped.length; i += 3) {
+    const [c1, c2, p] = [mapped[i], mapped[i + 1], mapped[i + 2]];
+    d += ` C ${c1[0]} ${c1[1]} ${c2[0]} ${c2[1]} ${p[0]} ${p[1]}`;
+  }
+  if (close) d += " Z";
+  return d;
+}
+
+/** Classic saree paisley silhouette — tip up, belly to the right. */
+function butaOutline(angle: number, mirror: boolean, inset = 0): string {
+  const k = 1 - inset;
+  // M + 4 cubic segments (13 points: start + 4*3).
+  const pts: [number, number][] = [
+    [0, -20 * k],
+    [9 * k, -19 * k],
+    [15 * k, -10 * k],
+    [14 * k, 2 * k],
+    [12 * k, 12 * k],
+    [5 * k, 19 * k],
+    [-2 * k, 18 * k],
+    [-10 * k, 15 * k],
+    [-14 * k, 5 * k],
+    [-11 * k, -6 * k],
+    [-8 * k, -15 * k],
+    [-5 * k, -19 * k],
+    [0, -20 * k],
+  ];
+  return rotatedCubic(pts, angle, mirror, true);
+}
+
+/** Marigold / sunburst center like the reference butas. */
+function butaFlowerPath(angle: number, petals = 10, len = 5.5): string {
+  const parts: string[] = [];
+  for (let i = 0; i < petals; i++) {
+    const a = angle + (i / petals) * Math.PI * 2;
+    const tip = rotPt(Math.cos(a) * len, Math.sin(a) * len, 0);
+    const w = 1.7;
+    const left = rotPt(Math.cos(a) * len * 0.4 - Math.sin(a) * w, Math.sin(a) * len * 0.4 + Math.cos(a) * w, 0);
+    const right = rotPt(Math.cos(a) * len * 0.4 + Math.sin(a) * w, Math.sin(a) * len * 0.4 - Math.cos(a) * w, 0);
+    parts.push(`M 0 0 Q ${left[0]} ${left[1]} ${tip[0]} ${tip[1]} Q ${right[0]} ${right[1]} 0 0`);
+  }
+  return parts.join(" ");
+}
+
+/** Tiny 6-petal filler flower. */
+function fillerFlowerPath(): string {
+  const parts: string[] = [];
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * Math.PI * 2;
+    const len = 4.2;
+    const tipX = r2(Math.cos(a) * len);
+    const tipY = r2(Math.sin(a) * len);
+    const w = 1.6;
+    const px = r2(-Math.sin(a) * w);
+    const py = r2(Math.cos(a) * w);
+    parts.push(
+      `M 0 0 Q ${r2(tipX * 0.45 + px)} ${r2(tipY * 0.45 + py)} ${tipX} ${tipY} Q ${r2(tipX * 0.45 - px)} ${r2(tipY * 0.45 - py)} 0 0`,
+    );
+  }
+  return parts.join(" ");
+}
+
+function pushOrnateButa(
+  ops: DrawOp[],
+  cx: number,
+  cy: number,
+  scale: number,
+  angle: number,
+  mirror: boolean,
+  opacity: number,
+) {
+  const o = r2(opacity);
+  // Outer + inner contour.
+  ops.push({
+    kind: "path",
+    d: butaOutline(angle, mirror, 0),
+    x: cx,
+    y: cy,
+    scale,
+    stroke: "accent",
+    weight: 1.05,
+    opacity: o,
+  });
+  ops.push({
+    kind: "path",
+    d: butaOutline(angle, mirror, 0.18),
+    x: cx,
+    y: cy,
+    scale,
+    stroke: "accent",
+    weight: 0.65,
+    opacity: r2(o * 0.85),
+  });
+
+  // Dot border following the belly curve (bindi row).
+  for (let t = 0; t < 11; t++) {
+    const u = 0.12 + t * 0.07;
+    // Sample a point along the right belly of the unrotated paisley, then rotate.
+    const localX = (mirror ? -1 : 1) * (10 - Math.abs(u - 0.5) * 6);
+    const localY = -14 + u * 30;
+    const [dx, dy] = rotPt(localX * 0.72, localY * 0.72, angle);
+    ops.push({
+      kind: "circle",
+      cx: r2(cx + dx * scale),
+      cy: r2(cy + dy * scale),
+      r: r2(0.7 * scale),
+      fill: "accent",
+      opacity: r2(o * 0.95),
+    });
+  }
+
+  // Concentric rings around the floral heart (lower belly).
+  const [hx, hy] = rotPt((mirror ? -1 : 1) * 1.5, 2, angle);
+  const flowerCx = r2(cx + hx * scale);
+  const flowerCy = r2(cy + hy * scale);
+  for (const rr of [3.2, 4.6]) {
+    ops.push({
+      kind: "circle",
+      cx: flowerCx,
+      cy: flowerCy,
+      r: r2(rr * scale),
+      stroke: "accent",
+      fill: "none",
+      opacity: r2(o * 0.75),
+    });
+  }
+  ops.push({
+    kind: "path",
+    d: butaFlowerPath(angle * 0.3, 10, 5.2),
+    x: flowerCx,
+    y: flowerCy,
+    scale,
+    stroke: "accent",
+    weight: 0.7,
+    opacity: r2(o * 0.95),
+  });
+  ops.push({
+    kind: "circle",
+    cx: flowerCx,
+    cy: flowerCy,
+    r: r2(1.2 * scale),
+    fill: "accent",
+    opacity: r2(o * 1.05),
+  });
+
+  // Tip curl accent.
+  const [tx, ty] = rotPt((mirror ? -1 : 1) * 1, -14, angle);
+  ops.push({
+    kind: "circle",
+    cx: r2(cx + tx * scale),
+    cy: r2(cy + ty * scale),
+    r: r2(1.4 * scale),
+    stroke: "accent",
+    fill: "none",
+    opacity: r2(o * 0.8),
+  });
+}
+
+function pushMiniButa(
+  ops: DrawOp[],
+  cx: number,
+  cy: number,
+  scale: number,
+  angle: number,
+  mirror: boolean,
+  opacity: number,
+) {
+  ops.push({
+    kind: "path",
+    d: butaOutline(angle, mirror, 0),
+    x: cx,
+    y: cy,
+    scale,
+    stroke: "accent",
+    weight: 0.75,
+    opacity: r2(opacity),
+  });
+  const [hx, hy] = rotPt(0, 1, angle);
+  ops.push({
+    kind: "circle",
+    cx: r2(cx + hx * scale),
+    cy: r2(cy + hy * scale),
+    r: r2(1.1 * scale),
+    fill: "accent",
+    opacity: r2(opacity * 0.9),
+  });
+}
+
+function pushDottedCircle(ops: DrawOp[], cx: number, cy: number, r: number, opacity: number) {
+  ops.push({
+    kind: "circle",
+    cx,
+    cy,
+    r,
+    stroke: "accent",
+    fill: "none",
+    opacity: r2(opacity),
+  });
+  const n = 8;
+  for (let i = 0; i < n; i++) {
+    const a = (i / n) * Math.PI * 2;
+    ops.push({
+      kind: "circle",
+      cx: r2(cx + Math.cos(a) * r * 0.55),
+      cy: r2(cy + Math.sin(a) * r * 0.55),
+      r: 0.7,
+      fill: "accent",
+      opacity: r2(opacity * 0.9),
+    });
+  }
+}
+
 /** Famous, easy-to-print repeating patterns, generated as plain shapes so
  * they draw through the exact same op list as everything else — no images,
  * no second code path that could drift between preview and PDF. Kept subtle
@@ -290,6 +522,90 @@ export function buildPatternOps(pattern: PatternId, w: number, h: number): DrawO
     for (let y = 0; y <= h; y += step) {
       for (let x = 0; x <= w; x += step) {
         ops.push({ kind: "circle", cx: x, cy: y, r: 1.4, fill: "accent", opacity: 0.35 });
+      }
+    }
+    return ops;
+  }
+  if (pattern === "buta") {
+    // Dense saree paisley print — ornate butas + flower / mini-buta / dotted fillers.
+    const target = Math.min(42, Math.max(10, Math.round((w * h) / 4800)));
+    const cell = Math.sqrt((w * h) / target);
+    let i = 0;
+    for (let row = 0; row * cell < h + cell; row++) {
+      const offset = (row % 2) * (cell * 0.5);
+      for (let col = 0; col * cell < w + cell; col++) {
+        const jitterX = (hash01(i) - 0.5) * cell * 0.28;
+        const jitterY = (hash01(i + 7) - 0.5) * cell * 0.28;
+        const cx = r2(col * cell + cell * 0.5 + offset + jitterX);
+        const cy = r2(row * cell + cell * 0.5 + jitterY);
+        if (cx < -20 || cx > w + 20 || cy < -24 || cy > h + 24) {
+          i++;
+          continue;
+        }
+        const angle = r2(hash01(i + 3) * Math.PI * 2);
+        const mirror = hash01(i + 11) > 0.5;
+        const scale = r2(Math.max(0.55, cell / 42) * (0.85 + hash01(i + 5) * 0.35));
+        const opacity = r2(0.28 + hash01(i + 13) * 0.1);
+        pushOrnateButa(ops, cx, cy, scale, angle, mirror, opacity);
+
+        // Fillers in the gap toward the next cell — flowers, dotted rings, mini butas.
+        const fx = r2(cx + cell * 0.38 + (hash01(i + 17) - 0.5) * 4);
+        const fy = r2(cy + cell * 0.12 + (hash01(i + 19) - 0.5) * 4);
+        if (fx > -8 && fx < w + 8 && fy > -8 && fy < h + 8) {
+          const kind = hash01(i + 23);
+          const fo = r2(opacity * 0.95);
+          if (kind < 0.38) {
+            ops.push({
+              kind: "path",
+              d: fillerFlowerPath(),
+              x: fx,
+              y: fy,
+              scale: r2(0.7 + hash01(i + 29) * 0.35),
+              stroke: "accent",
+              weight: 0.65,
+              opacity: fo,
+            });
+            ops.push({
+              kind: "circle",
+              cx: fx,
+              cy: fy,
+              r: 1,
+              fill: "accent",
+              opacity: fo,
+            });
+          } else if (kind < 0.68) {
+            pushDottedCircle(ops, fx, fy, r2(3.2 + hash01(i + 31) * 1.8), fo);
+          } else {
+            pushMiniButa(
+              ops,
+              fx,
+              fy,
+              r2(0.28 + hash01(i + 33) * 0.12),
+              r2(hash01(i + 37) * Math.PI * 2),
+              hash01(i + 41) > 0.5,
+              fo,
+            );
+          }
+        }
+
+        // Extra small flower scatter for density like the reference.
+        if (hash01(i + 43) > 0.45) {
+          const sx = r2(cx - cell * 0.28);
+          const sy = r2(cy + cell * 0.32);
+          if (sx > -6 && sx < w + 6 && sy > -6 && sy < h + 6) {
+            ops.push({
+              kind: "path",
+              d: fillerFlowerPath(),
+              x: sx,
+              y: sy,
+              scale: r2(0.45 + hash01(i + 47) * 0.2),
+              stroke: "accent",
+              weight: 0.55,
+              opacity: r2(opacity * 0.85),
+            });
+          }
+        }
+        i++;
       }
     }
     return ops;

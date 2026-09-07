@@ -273,8 +273,29 @@ svg {
 
 .brand {
   display: inline-flex;
+  align-items: center;
+  gap: 0.7rem;
+  text-decoration: none;
+  color: inherit;
+}
+
+.brand:hover .brand-mark {
+  color: var(--accent);
+}
+
+.brand-logo {
+  width: 2.15rem;
+  height: 2.15rem;
+  flex-shrink: 0;
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+}
+
+.brand-text {
+  display: inline-flex;
   align-items: baseline;
   gap: 0.55rem;
+  min-width: 0;
 }
 
 .brand-mark {
@@ -283,6 +304,7 @@ svg {
   font-weight: 560;
   letter-spacing: -0.02em;
   line-height: 1;
+  transition: color 160ms var(--ease);
 }
 
 .brand-tag {
@@ -744,9 +766,144 @@ svg {
   }
 }
 
+/* Skeleton loading */
+
+.skeleton-stack {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.skeleton-block {
+  border-radius: var(--radius);
+  background: linear-gradient(
+    105deg,
+    var(--paper-deep) 0%,
+    var(--surface) 42%,
+    var(--paper-deep) 78%
+  );
+  background-size: 220% 100%;
+  animation: skeleton-shimmer 1.35s var(--ease) infinite;
+}
+
+.skeleton-title {
+  height: 2.35rem;
+  width: min(100%, 16rem);
+}
+
+.skeleton-lead {
+  height: 0.95rem;
+  width: 100%;
+}
+
+.skeleton-lead-short {
+  width: 72%;
+}
+
+.skeleton-btn {
+  width: 7.5rem;
+  height: 2.75rem;
+}
+
+.skeleton-panel {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.skeleton-kicker {
+  height: 0.7rem;
+  width: 4.5rem;
+}
+
+.skeleton-shape-row {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.skeleton-shape {
+  height: 4.25rem;
+}
+
+.skeleton-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.skeleton-chip {
+  height: 2rem;
+  width: 5.5rem;
+}
+
+.skeleton-field {
+  height: 2.75rem;
+}
+
+.skeleton-swatch-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.skeleton-swatch {
+  width: 2.4rem;
+  height: 2.4rem;
+  border-radius: 50%;
+}
+
+.skeleton-pattern-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+
+.skeleton-pattern {
+  height: 4.5rem;
+}
+
+.skeleton-preview {
+  min-height: 340px;
+}
+
+.skeleton-bookmark {
+  width: min(42%, 7.5rem);
+  height: min(70%, 14rem);
+  border-radius: 2px 2px 10px 10px;
+  opacity: 0.9;
+}
+
+.skeleton-hint {
+  height: 0.8rem;
+  width: min(100%, 16rem);
+  margin: 0.55rem auto 0;
+}
+
+.skeleton-sheet {
+  min-height: 10rem;
+}
+
+.skeleton-sheet-inner {
+  width: min(100%, 11rem);
+  height: 8.5rem;
+}
+
+@keyframes skeleton-shimmer {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: -100% 0;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .btn,
-  .shape-card {
+  .shape-card,
+  .brand-mark {
     transition: none;
+  }
+
+  .skeleton-block {
+    animation: none;
+    background: var(--paper-deep);
   }
 }

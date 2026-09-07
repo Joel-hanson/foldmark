@@ -14,18 +14,27 @@ import { suggestedAccordionPanels } from "./unitPlan";
 
 const SHAPES: Shape[] = ["accordion", "corner"];
 const PAPER_IDS: PaperSize[] = ["a4", "letter", "a5", "legal"];
-const PATTERNS: PatternId[] = ["none", "stripes", "polka", "chevron", "swirls", "waves", "lattice"];
+const PATTERNS: PatternId[] = [
+  "none",
+  "stripes",
+  "polka",
+  "chevron",
+  "swirls",
+  "waves",
+  "lattice",
+  "buta",
+];
 const MOTIFS: MotifId[] = [
   "none",
   "flower",
-  "panda",
+  // "panda",
   "elephant",
   "giraffe",
   "fox",
   "rabbit",
-  "penguin",
+  // "penguin",
   "bear",
-  "leaf",
+  // "leaf",
 ];
 const SURFACES: SurfaceMode[] = ["pattern", "image"];
 const FONTS: FontId[] = ["cormorant", "baskerville", "lora", "playfair", "fraunces"];

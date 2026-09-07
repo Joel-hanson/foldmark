@@ -1,10 +1,16 @@
+import Link from "next/link";
+import { FoldmarkLogo } from "@/components/FoldmarkLogo";
+
 export function SiteHeader() {
   return (
     <header className="site-header shell">
-      <span className="brand" aria-label="Foldmark">
-        <span className="brand-mark">Foldmark</span>
-        <span className="brand-tag">print · fold · read</span>
-      </span>
+      <Link className="brand" href="/" aria-label="Foldmark home">
+        <FoldmarkLogo className="brand-logo" />
+        <span className="brand-text">
+          <span className="brand-mark">Foldmark</span>
+          <span className="brand-tag">print · fold · read</span>
+        </span>
+      </Link>
     </header>
   );
 }

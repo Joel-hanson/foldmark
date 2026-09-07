@@ -85,19 +85,20 @@ export const PATTERNS: PatternInfo[] = [
   { id: "swirls", name: "Swirls" },
   { id: "waves", name: "Waves" },
   { id: "lattice", name: "Lattice" },
+  // { id: "buta", name: "Saree buta" },
 ];
 
 export const MOTIFS: MotifInfo[] = [
   { id: "none", name: "None" },
   { id: "flower", name: "Flower" },
-  { id: "panda", name: "Panda" },
+  // { id: "panda", name: "Panda" },
   { id: "elephant", name: "Elephant" },
   { id: "giraffe", name: "Giraffe" },
   { id: "fox", name: "Fox" },
   { id: "rabbit", name: "Rabbit" },
   { id: "penguin", name: "Penguin" },
   { id: "bear", name: "Bear" },
-  { id: "leaf", name: "Leaf" },
+  // { id: "leaf", name: "Leaf" },
 ];
 
 /** Short phrases that read like a private note, not a product label. */
