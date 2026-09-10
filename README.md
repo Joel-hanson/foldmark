@@ -2,7 +2,11 @@
 
 A dead-simple printable bookmark maker.
 
-Pick a shape, type your text, download a PDF, cut it out. That's it.
+Pick a shape, type your text, download a PDF, fold it. That's it.
+
+**[foldmark.joelhanson.com](https://foldmark.joelhanson.com/)**
+
+![Foldmark accordion fold](docs/screenshots/accordion.png)
 
 ## Run locally
 
@@ -25,10 +29,10 @@ Or connect the GitHub repo in the Vercel dashboard — no special config require
 
 ## Shapes
 
-Both are a single cut piece of paper — no origami-folding the whole sheet.
+- **Accordion fold** — the whole sheet, fan-folded thick. Numbered fold lines, no scissors. Cover is landscape and ready after the fan-fold.
+- **Corner pocket** — cut a square, fold twice into a triangular pocket that slides over the page corner.
 
-- **Flat strip** — cut it out, no folding at all. The classic bookmark.
-- **Corner pocket** — cut a square, fold it twice into a triangular pocket that slides over the page corner.
+![Corner pocket bookmark](docs/screenshots/corner.png)
 
 ## How it stays honest
 
@@ -40,8 +44,12 @@ there's no separate hand-tuned drawing routine for each that can drift apart.
 ## Features
 
 - Two shapes, five color palettes, color or black & white
+- Patterns, motifs, or your own image on the face
 - A4, Letter, A5, Legal — tiles as many copies as fit per sheet
 - Shareable design links (URL state, no account)
+- Client-side PDF generation — nothing is uploaded
+
+![Night press palette](docs/screenshots/night.png)
 
 ## Stack
 
