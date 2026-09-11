@@ -23,14 +23,23 @@ export type PatternId =
 export type MotifId =
   | "none"
   | "flower"
+  | "flowerAlt"
   | "panda"
+  | "pandaAlt"
   | "elephant"
+  | "elephantAlt"
   | "giraffe"
+  | "giraffeAlt"
   | "fox"
+  | "foxAlt"
   | "rabbit"
+  | "rabbitAlt"
   | "penguin"
+  | "penguinAlt"
   | "bear"
-  | "leaf";
+  | "bearAlt"
+  | "leaf"
+  | "leafAlt";
 
 export type PaperSize = "a4" | "letter" | "a5" | "legal";
 export type PrintMode = "color" | "bw";

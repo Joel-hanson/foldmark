@@ -1,11 +1,25 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { useSearchParams } from "next/navigation";
-import { PALETTES, MOTIFS, PATTERNS, PAPER_LABELS, PHRASE_PRESETS, SHAPES, ACCORDION_PANEL_OPTIONS, ACCORDION_DIRECTION_OPTIONS, getShapeInfo } from "@/lib/catalog";
+import {
+  PALETTES,
+  MOTIFS,
+  PATTERNS,
+  PAPER_LABELS,
+  PHRASE_PRESETS,
+  LOOK_PRESETS,
+  SHAPES,
+  ACCORDION_PANEL_OPTIONS,
+  ACCORDION_DIRECTION_OPTIONS,
+  getShapeInfo,
+  getPalette,
+} from "@/lib/catalog";
 import { defaultDesign, designFromQuery, designToQuery } from "@/lib/designState";
 import type { AccordionDirection, AccordionPanels, DesignState, FontId, FontSizeId, MotifId, PaperSize, PatternId } from "@/lib/types";
 import { MotifSwatch, PatternSwatch, SheetPreview, UnitPreview } from "@/components/BookmarkArt";
+import { FoldGuide } from "@/components/FoldGuide";
+import { ImageFaceEditor } from "@/components/ImageFaceEditor";
 import { resolveColors } from "@/lib/colors";
 import { computeSheet } from "@/lib/sheet";
 import { buildUnitPlan, suggestedAccordionPanels } from "@/lib/unitPlan";
@@ -13,33 +27,17 @@ import { buildBookmarkPdf, downloadPdfBytes } from "@/lib/pdf";
 import { BOOKMARK_FONTS, FONT_SIZES, cssFontStack } from "@/lib/bookmarkFont";
 
 const IMAGE_STORAGE_KEY = "foldmark-bg-image";
-const MAX_IMAGE_BYTES = 2.5 * 1024 * 1024;
-const ALLOWED_IMAGE_TYPES = new Set(["image/png", "image/jpeg", "image/jpg", "image/webp"]);
-
-function readFileAsDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result === "string") resolve(reader.result);
-      else reject(new Error("Could not read file"));
-    };
-    reader.onerror = () => reject(new Error("Could not read file"));
-    reader.readAsDataURL(file);
-  });
-}
 
 export function MakerApp() {
   const searchParams = useSearchParams();
-  const fileRef = useRef<HTMLInputElement>(null);
   const [design, setDesign] = useState<DesignState>(() => {
-    const fromUrl = designFromQuery(searchParams.toString()) ?? defaultDesign();
-    return fromUrl;
+    return designFromQuery(searchParams.toString()) ?? defaultDesign();
   });
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [customizeOpen, setCustomizeOpen] = useState(false);
 
-  // Restore an uploaded image from this tab (too large for the share URL).
   useEffect(() => {
     try {
       const stored = sessionStorage.getItem(IMAGE_STORAGE_KEY);
@@ -110,6 +108,11 @@ export function MakerApp() {
     ],
   );
 
+  const lead =
+    design.shape === "accordion"
+      ? "Pick a look, type a line, download a PDF — fan-fold the numbered lines, no scissors."
+      : "Pick a look, type a line, download a PDF — cut the square, fold twice into a pocket.";
+
   function handleDownload() {
     setError(null);
     if (design.surfaceMode === "image" && !design.bgImage) {
@@ -138,47 +141,48 @@ export function MakerApp() {
     }
   }
 
-  async function handleImagePick(file: File | undefined) {
-    if (!file) return;
-    setError(null);
-    if (!ALLOWED_IMAGE_TYPES.has(file.type)) {
-      setError("Use a PNG, JPEG, or WebP image.");
-      return;
-    }
-    if (file.size > MAX_IMAGE_BYTES) {
-      setError("Keep the image under 2.5 MB so the PDF stays printable.");
-      return;
-    }
-    try {
-      const dataUrl = await readFileAsDataUrl(file);
-      // WebP preview works in SVG; PDF export needs PNG/JPEG — convert via canvas if needed.
-      let printable = dataUrl;
-      if (file.type === "image/webp") {
-        printable = await webpToJpegDataUrl(dataUrl);
-      }
-      setDesign((d) => ({ ...d, surfaceMode: "image", bgImage: printable }));
-    } catch {
-      setError("Could not read that image.");
-    }
+  function applyLook(id: string) {
+    const look = LOOK_PRESETS.find((l) => l.id === id);
+    if (!look) return;
+    setDesign((d) => ({
+      ...d,
+      title: look.title,
+      subtitle: look.subtitle,
+      paletteId: look.paletteId,
+      pattern: look.pattern,
+      motif: look.motif,
+      surfaceMode: "pattern",
+    }));
   }
+
+  const activeLookId =
+    LOOK_PRESETS.find(
+      (l) =>
+        l.title === design.title &&
+        l.subtitle === design.subtitle &&
+        l.paletteId === design.paletteId &&
+        l.pattern === design.pattern &&
+        l.motif === design.motif &&
+        design.surfaceMode === "pattern",
+    )?.id ?? null;
 
   return (
     <div className="maker shell">
       <div className="maker-top">
         <div>
           <h1 className="maker-title">Make a bookmark</h1>
-          <p className="maker-lead">
-            Pick a shape, dress the face with a pattern or your own image, print,
-            and fold the numbered lines — no scissors needed.
-          </p>
+          <p className="maker-lead">{lead}</p>
         </div>
-        <div className="maker-cta-row">
-          <button type="button" className="btn btn-secondary" onClick={handleShare}>
-            {copied ? "Link copied" : "Copy link"}
-          </button>
-          <button type="button" className="btn btn-primary" onClick={handleDownload} disabled={pending}>
-            {pending ? "Building PDF…" : "Download PDF"}
-          </button>
+        <div className="maker-cta-col">
+          <div className="maker-cta-row">
+            <button type="button" className="btn btn-secondary" onClick={handleShare}>
+              {copied ? "Link copied" : "Copy link"}
+            </button>
+            <button type="button" className="btn btn-primary" onClick={handleDownload} disabled={pending}>
+              {pending ? "Building PDF…" : "Download PDF"}
+            </button>
+          </div>
+          <p className="print-tip">Print at <strong>100% / Actual size</strong> — turn off “fit to page.”</p>
         </div>
       </div>
 
@@ -200,53 +204,32 @@ export function MakerApp() {
             ))}
           </div>
 
-          {design.shape === "accordion" ? (
-            <>
-              <h2 className="panel-kicker" style={{ marginTop: "1.5rem" }}>
-                Folds
-              </h2>
-              <p className="hint" style={{ marginTop: "-0.35rem", marginBottom: "0.65rem" }}>
-                Fold down prints a landscape cover — fan-fold and you&apos;re done, no splitting in half.
-              </p>
-              <div className="size-row" role="list" aria-label="Fold direction">
-                {ACCORDION_DIRECTION_OPTIONS.map((opt) => (
-                  <button
-                    key={opt.id}
-                    type="button"
-                    className="size-chip"
-                    data-active={design.accordionDirection === opt.id}
-                    role="listitem"
-                    title={opt.blurb}
-                    onClick={() =>
-                      setDesign((d) => ({
-                        ...d,
-                        accordionDirection: opt.id as AccordionDirection,
-                        accordionPanels: suggestedAccordionPanels(d.paperSize, opt.id),
-                      }))
-                    }
-                  >
-                    {opt.name}
-                  </button>
-                ))}
-              </div>
-              <div className="size-row" role="list" aria-label="Accordion fold count" style={{ marginTop: "-0.5rem" }}>
-                {ACCORDION_PANEL_OPTIONS.map((n) => (
-                  <button
-                    key={n}
-                    type="button"
-                    className="size-chip"
-                    data-active={design.accordionPanels === n}
-                    role="listitem"
-                    onClick={() => setDesign((d) => ({ ...d, accordionPanels: n as AccordionPanels }))}
-                  >
-                    {n} panels
-                  </button>
-                ))}
-              </div>
-            </>
-          ) : null}
+          <h2 className="panel-kicker" style={{ marginTop: "1.5rem" }}>
+            Look
+          </h2>
+          <div className="look-row" role="list">
+            {LOOK_PRESETS.map((look) => {
+              const pal = getPalette(look.paletteId);
+              return (
+                <button
+                  key={look.id}
+                  type="button"
+                  className="look-chip"
+                  data-active={activeLookId === look.id}
+                  role="listitem"
+                  onClick={() => applyLook(look.id)}
+                >
+                  <span className="look-swatch" aria-hidden="true">
+                    <i style={{ background: pal.paper }} />
+                    <i style={{ background: pal.accent }} />
+                  </span>
+                  <span className="look-name">{look.name}</span>
+                </button>
+              );
+            })}
+          </div>
 
-          <h2 className="panel-kicker" style={{ marginTop: design.shape === "accordion" ? 0 : "1.5rem" }}>
+          <h2 className="panel-kicker" style={{ marginTop: "1.25rem" }}>
             Words
           </h2>
           <div className="phrase-row" role="list">
@@ -287,210 +270,232 @@ export function MakerApp() {
             />
           </div>
 
-          <h2 className="panel-kicker" style={{ marginTop: "1.5rem" }}>
-            Type
-          </h2>
-          <div className="font-row" role="list">
-            {BOOKMARK_FONTS.map((font) => (
-              <button
-                key={font.id}
-                type="button"
-                className="font-card"
-                data-active={design.fontId === font.id}
-                role="listitem"
-                style={{ fontFamily: cssFontStack(font.id) }}
-                onClick={() => setDesign((d) => ({ ...d, fontId: font.id as FontId }))}
-              >
-                <span className="font-card-sample">Aa</span>
-                <span className="font-card-name">{font.name}</span>
-              </button>
-            ))}
-          </div>
-          <div className="size-row" role="list" aria-label="Font size">
-            {FONT_SIZES.map((size) => (
-              <button
-                key={size.id}
-                type="button"
-                className="size-chip"
-                data-active={design.fontSize === size.id}
-                role="listitem"
-                onClick={() => setDesign((d) => ({ ...d, fontSize: size.id as FontSizeId }))}
-              >
-                {size.name}
-              </button>
-            ))}
-          </div>
+          <button
+            type="button"
+            className="customize-toggle"
+            aria-expanded={customizeOpen}
+            onClick={() => setCustomizeOpen((o) => !o)}
+          >
+            {customizeOpen ? "Hide customize" : "Customize type, color, face…"}
+          </button>
 
-          <h2 className="panel-kicker" style={{ marginTop: "1.5rem" }}>
-            Color
-          </h2>
-          <div className="swatches">
-            {PALETTES.map((p) => (
-              <button
-                key={p.id}
-                type="button"
-                className="swatch"
-                title={p.name}
-                aria-label={p.name}
-                data-active={design.paletteId === p.id}
-                onClick={() => setDesign((d) => ({ ...d, paletteId: p.id }))}
-              >
-                <span style={{ background: p.paper }} />
-                <span style={{ background: p.accent }} />
-              </button>
-            ))}
-          </div>
+          {customizeOpen ? (
+            <div className="customize-block">
+              {design.shape === "accordion" ? (
+                <>
+                  <h2 className="panel-kicker">Folds</h2>
+                  <p className="hint" style={{ marginTop: "-0.35rem", marginBottom: "0.65rem" }}>
+                    Fold down prints a landscape cover — fan-fold and you&apos;re done.
+                  </p>
+                  <div className="size-row" role="list" aria-label="Fold direction">
+                    {ACCORDION_DIRECTION_OPTIONS.map((opt) => (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        className="size-chip"
+                        data-active={design.accordionDirection === opt.id}
+                        role="listitem"
+                        title={opt.blurb}
+                        onClick={() =>
+                          setDesign((d) => ({
+                            ...d,
+                            accordionDirection: opt.id as AccordionDirection,
+                            accordionPanels: suggestedAccordionPanels(d.paperSize, opt.id),
+                          }))
+                        }
+                      >
+                        {opt.name}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="size-row" role="list" aria-label="Accordion fold count" style={{ marginTop: "-0.5rem" }}>
+                    {ACCORDION_PANEL_OPTIONS.map((n) => (
+                      <button
+                        key={n}
+                        type="button"
+                        className="size-chip"
+                        data-active={design.accordionPanels === n}
+                        role="listitem"
+                        onClick={() => setDesign((d) => ({ ...d, accordionPanels: n as AccordionPanels }))}
+                      >
+                        {n} panels
+                      </button>
+                    ))}
+                  </div>
+                </>
+              ) : null}
 
-          <h2 className="panel-kicker" style={{ marginTop: "1.5rem" }}>
-            Face
-          </h2>
-          <div className="surface-tabs" role="tablist" aria-label="Face fill">
-            <button
-              type="button"
-              role="tab"
-              aria-selected={design.surfaceMode === "pattern"}
-              data-active={design.surfaceMode === "pattern"}
-              onClick={() => setDesign((d) => ({ ...d, surfaceMode: "pattern" }))}
-            >
-              Pattern
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={design.surfaceMode === "image"}
-              data-active={design.surfaceMode === "image"}
-              onClick={() => setDesign((d) => ({ ...d, surfaceMode: "image" }))}
-            >
-              Your image
-            </button>
-          </div>
+              <h2 className="panel-kicker" style={{ marginTop: design.shape === "accordion" ? 0 : undefined }}>
+                Type
+              </h2>
+              <div className="font-row" role="list">
+                {BOOKMARK_FONTS.map((font) => (
+                  <button
+                    key={font.id}
+                    type="button"
+                    className="font-card"
+                    data-active={design.fontId === font.id}
+                    role="listitem"
+                    style={{ fontFamily: cssFontStack(font.id) }}
+                    onClick={() => setDesign((d) => ({ ...d, fontId: font.id as FontId }))}
+                  >
+                    <span className="font-card-sample">Aa</span>
+                    <span className="font-card-name">{font.name}</span>
+                  </button>
+                ))}
+              </div>
+              <div className="size-row" role="list" aria-label="Font size">
+                {FONT_SIZES.map((size) => (
+                  <button
+                    key={size.id}
+                    type="button"
+                    className="size-chip"
+                    data-active={design.fontSize === size.id}
+                    role="listitem"
+                    onClick={() => setDesign((d) => ({ ...d, fontSize: size.id as FontSizeId }))}
+                  >
+                    {size.name}
+                  </button>
+                ))}
+              </div>
 
-          {design.surfaceMode === "pattern" ? (
-            <div className="pattern-row">
-              {PATTERNS.map((p) => (
+              <h2 className="panel-kicker" style={{ marginTop: "1.5rem" }}>
+                Color
+              </h2>
+              <div className="swatches">
+                {PALETTES.map((p) => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    className="swatch"
+                    title={p.name}
+                    aria-label={p.name}
+                    data-active={design.paletteId === p.id}
+                    onClick={() => setDesign((d) => ({ ...d, paletteId: p.id }))}
+                  >
+                    <span style={{ background: p.paper }} />
+                    <span style={{ background: p.accent }} />
+                  </button>
+                ))}
+              </div>
+
+              <h2 className="panel-kicker" style={{ marginTop: "1.5rem" }}>
+                Face
+              </h2>
+              <div className="surface-tabs" role="tablist" aria-label="Face fill">
                 <button
-                  key={p.id}
                   type="button"
-                  className="pattern-card"
-                  data-active={design.pattern === p.id}
-                  onClick={() => setDesign((d) => ({ ...d, pattern: p.id as PatternId, surfaceMode: "pattern" }))}
+                  role="tab"
+                  aria-selected={design.surfaceMode === "pattern"}
+                  data-active={design.surfaceMode === "pattern"}
+                  onClick={() => setDesign((d) => ({ ...d, surfaceMode: "pattern" }))}
                 >
-                  <PatternSwatch pattern={p.id} colors={colors} />
-                  <span>{p.name}</span>
+                  Pattern
                 </button>
-              ))}
-            </div>
-          ) : (
-            <div className="upload-block">
-              <input
-                ref={fileRef}
-                type="file"
-                accept="image/png,image/jpeg,image/webp"
-                className="sr-only"
-                onChange={(e) => {
-                  void handleImagePick(e.target.files?.[0]);
-                  e.target.value = "";
-                }}
-              />
-              {design.bgImage ? (
-                <div className="upload-preview">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={design.bgImage} alt="Uploaded face" />
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={design.surfaceMode === "image"}
+                  data-active={design.surfaceMode === "image"}
+                  onClick={() => setDesign((d) => ({ ...d, surfaceMode: "image" }))}
+                >
+                  Your image
+                </button>
+              </div>
+
+              {design.surfaceMode === "pattern" ? (
+                <div className="pattern-row">
+                  {PATTERNS.map((p) => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      className="pattern-card"
+                      data-active={design.pattern === p.id}
+                      onClick={() => setDesign((d) => ({ ...d, pattern: p.id as PatternId, surfaceMode: "pattern" }))}
+                    >
+                      <PatternSwatch pattern={p.id} colors={colors} />
+                      <span>{p.name}</span>
+                    </button>
+                  ))}
                 </div>
               ) : (
-                <p className="hint" style={{ marginTop: 0 }}>
-                  A photo, scan, or seamless pattern — cropped to fill the bookmark face.
-                </p>
+                <ImageFaceEditor
+                  shape={design.shape}
+                  bgImage={design.bgImage}
+                  onError={setError}
+                  onChange={(bgImage) =>
+                    setDesign((d) => ({
+                      ...d,
+                      bgImage,
+                      surfaceMode: bgImage ? "image" : "pattern",
+                    }))
+                  }
+                />
               )}
-              <div className="maker-cta-row" style={{ marginTop: "0.75rem" }}>
-                <button type="button" className="btn btn-secondary" onClick={() => fileRef.current?.click()}>
-                  {design.bgImage ? "Replace image" : "Upload image"}
-                </button>
+
+              <h2 className="panel-kicker" style={{ marginTop: "1.5rem" }}>
+                Motif
+              </h2>
+              <p className="hint" style={{ marginTop: "-0.35rem", marginBottom: "0.65rem" }}>
+                Small cover ornament under the title.
+              </p>
+              <div className="pattern-row">
+                {MOTIFS.map((m) => (
+                  <button
+                    key={m.id}
+                    type="button"
+                    className="pattern-card"
+                    data-active={design.motif === m.id}
+                    onClick={() => setDesign((d) => ({ ...d, motif: m.id as MotifId }))}
+                  >
+                    <MotifSwatch motif={m.id} colors={colors} />
+                    <span>{m.name}</span>
+                  </button>
+                ))}
+              </div>
+
+              <h2 className="panel-kicker" style={{ marginTop: "1.5rem" }}>
+                Print setup
+              </h2>
+              <div className="field">
+                <label htmlFor="paper">Paper size</label>
+                <select
+                  id="paper"
+                  value={design.paperSize}
+                  onChange={(e) =>
+                    setDesign((d) => {
+                      const paperSize = e.target.value as PaperSize;
+                      return {
+                        ...d,
+                        paperSize,
+                        accordionPanels: suggestedAccordionPanels(paperSize, d.accordionDirection),
+                      };
+                    })
+                  }
+                >
+                  {Object.entries(PAPER_LABELS).map(([id, label]) => (
+                    <option key={id} value={id}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="toggle-row">
+                <span>Color print</span>
                 <button
                   type="button"
-                  className="btn btn-secondary"
-                  onClick={() => {
-                    void (async () => {
-                      try {
-                        setError(null);
-                        const res = await fetch("/patterns/swirls-sample.png");
-                        if (!res.ok) throw new Error("missing");
-                        const blob = await res.blob();
-                        const file = new File([blob], "swirls-sample.png", { type: "image/png" });
-                        await handleImagePick(file);
-                      } catch {
-                        setError("Could not load the sample texture.");
-                      }
-                    })();
-                  }}
+                  className="toggle"
+                  data-on={design.printMode === "color"}
+                  aria-pressed={design.printMode === "color"}
+                  onClick={() =>
+                    setDesign((d) => ({ ...d, printMode: d.printMode === "color" ? "bw" : "color" }))
+                  }
                 >
-                  Try sample swirls
+                  <i />
                 </button>
-                {design.bgImage ? (
-                  <button
-                    type="button"
-                    className="btn btn-secondary"
-                    onClick={() => setDesign((d) => ({ ...d, bgImage: null, surfaceMode: "pattern" }))}
-                  >
-                    Clear
-                  </button>
-                ) : null}
               </div>
             </div>
-          )}
-
-          <h2 className="panel-kicker" style={{ marginTop: "1.5rem" }}>
-            Motif
-          </h2>
-          <p className="hint" style={{ marginTop: "-0.35rem", marginBottom: "0.65rem" }}>
-            Wildlife face icons — simple line drawings.
-          </p>
-          <div className="pattern-row">
-            {MOTIFS.map((m) => (
-              <button
-                key={m.id}
-                type="button"
-                className="pattern-card"
-                data-active={design.motif === m.id}
-                onClick={() => setDesign((d) => ({ ...d, motif: m.id as MotifId }))}
-              >
-                <MotifSwatch motif={m.id} colors={colors} />
-                <span>{m.name}</span>
-              </button>
-            ))}
-          </div>
-
-          <h2 className="panel-kicker" style={{ marginTop: "1.5rem" }}>
-            Print setup
-          </h2>
-          <div className="field">
-            <label htmlFor="paper">Paper size</label>
-            <select
-              id="paper"
-              value={design.paperSize}
-              onChange={(e) => setDesign((d) => ({ ...d, paperSize: e.target.value as PaperSize }))}
-            >
-              {Object.entries(PAPER_LABELS).map(([id, label]) => (
-                <option key={id} value={id}>
-                  {label}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="toggle-row">
-            <span>Color print</span>
-            <button
-              type="button"
-              className="toggle"
-              data-on={design.printMode === "color"}
-              aria-pressed={design.printMode === "color"}
-              onClick={() =>
-                setDesign((d) => ({ ...d, printMode: d.printMode === "color" ? "bw" : "color" }))
-              }
-            >
-              <i />
-            </button>
-          </div>
+          ) : null}
 
           {error ? (
             <p className="hint" style={{ color: "var(--danger)" }}>
@@ -511,6 +516,12 @@ export function MakerApp() {
               : shapeInfo.howTo}
           </p>
 
+          <FoldGuide
+            shape={design.shape}
+            accordionDirection={design.accordionDirection}
+            foldCount={plan.foldCount}
+          />
+
           <div className="sheet-card">
             <SheetPreview design={design} />
           </div>
@@ -521,26 +532,4 @@ export function MakerApp() {
       </div>
     </div>
   );
-}
-
-function webpToJpegDataUrl(dataUrl: string): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.onload = () => {
-      const canvas = document.createElement("canvas");
-      canvas.width = img.naturalWidth;
-      canvas.height = img.naturalHeight;
-      const ctx = canvas.getContext("2d");
-      if (!ctx) {
-        reject(new Error("No canvas"));
-        return;
-      }
-      ctx.fillStyle = "#ffffff";
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      ctx.drawImage(img, 0, 0);
-      resolve(canvas.toDataURL("image/jpeg", 0.92));
-    };
-    img.onerror = () => reject(new Error("Could not decode WebP"));
-    img.src = dataUrl;
-  });
 }

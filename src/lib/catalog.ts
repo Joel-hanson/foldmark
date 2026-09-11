@@ -72,8 +72,8 @@ export const SHAPES: ShapeInfo[] = [
   {
     id: "corner",
     name: "Corner pocket",
-    blurb: "Slides over the page corner.",
-    howTo: "Cut the square, then fold twice into a pocket.",
+    blurb: "Cut a square, fold twice, slide over the page corner.",
+    howTo: "Cut the outer square, then fold on lines 1 and 2 into a pocket.",
   },
 ];
 
@@ -85,20 +85,29 @@ export const PATTERNS: PatternInfo[] = [
   { id: "swirls", name: "Swirls" },
   { id: "waves", name: "Waves" },
   { id: "lattice", name: "Lattice" },
-  // { id: "buta", name: "Saree buta" },
+  { id: "buta", name: "Saree buta" },
 ];
 
 export const MOTIFS: MotifInfo[] = [
   { id: "none", name: "None" },
   { id: "flower", name: "Flower" },
-  // { id: "panda", name: "Panda" },
+  { id: "flowerAlt", name: "Flower alt" },
+  { id: "leaf", name: "Leaf" },
+  { id: "leafAlt", name: "Leaf alt" },
+  { id: "panda", name: "Panda" },
+  { id: "pandaAlt", name: "Panda alt" },
   { id: "elephant", name: "Elephant" },
+  { id: "elephantAlt", name: "Elephant alt" },
   { id: "giraffe", name: "Giraffe" },
+  { id: "giraffeAlt", name: "Giraffe alt" },
   { id: "fox", name: "Fox" },
+  { id: "foxAlt", name: "Fox alt" },
   { id: "rabbit", name: "Rabbit" },
+  { id: "rabbitAlt", name: "Rabbit alt" },
   { id: "penguin", name: "Penguin" },
+  { id: "penguinAlt", name: "Penguin alt" },
   { id: "bear", name: "Bear" },
-  // { id: "leaf", name: "Leaf" },
+  { id: "bearAlt", name: "Bear alt" },
 ];
 
 /** Short phrases that read like a private note, not a product label. */
@@ -111,6 +120,65 @@ export const PHRASE_PRESETS: PhrasePreset[] = [
   { title: "again tomorrow", subtitle: "" },
   { title: "chapter break", subtitle: "" },
   { title: "find me", subtitle: "right here" },
+];
+
+/** One-tap looks — palette + pattern + motif + phrase together. */
+export type LookPreset = {
+  id: string;
+  name: string;
+  title: string;
+  subtitle: string;
+  paletteId: string;
+  pattern: PatternId;
+  motif: MotifId;
+};
+
+export const LOOK_PRESETS: LookPreset[] = [
+  {
+    id: "quiet-ink",
+    name: "Quiet ink",
+    title: "keep going",
+    subtitle: "",
+    paletteId: "ink",
+    pattern: "swirls",
+    motif: "none",
+  },
+  {
+    id: "night-read",
+    name: "Night read",
+    title: "before sleep",
+    subtitle: "",
+    paletteId: "night",
+    pattern: "waves",
+    motif: "fox",
+  },
+  {
+    id: "maple-note",
+    name: "Maple note",
+    title: "left off here",
+    subtitle: "",
+    paletteId: "maple",
+    pattern: "buta",
+    motif: "leaf",
+  },
+  {
+    id: "seawall",
+    name: "Seawall",
+    title: "one more page",
+    subtitle: "",
+    paletteId: "seawall",
+    pattern: "stripes",
+    motif: "none",
+  },
+  {
+    id: "clay-friend",
+    name: "Clay friend",
+    title: "find me",
+    subtitle: "right here",
+    paletteId: "clay",
+    pattern: "polka",
+    motif: "bear",
+  },
 ];
 
 export const PAPER_LABELS: Record<string, string> = {

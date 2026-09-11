@@ -1,5 +1,5 @@
 import type { DesignState, FontId, MotifId, PatternId } from "@/lib/types";
-import { buildPatternOps, buildUnitPlan, type DrawOp } from "@/lib/unitPlan";
+import { buildPatternOps, buildUnitPlan, fittedDashPattern, type DrawOp } from "@/lib/unitPlan";
 import { buildCoverMotif } from "@/lib/motifs";
 import { resolveColors, type ResolvedColors } from "@/lib/colors";
 import { computeSheet } from "@/lib/sheet";
@@ -48,6 +48,9 @@ function renderOps(ops: DrawOp[], colors: ResolvedColors, keyPrefix: string, fon
       );
     }
     if (op.kind === "line") {
+      const dasharray = op.dashed
+        ? fittedDashPattern(Math.hypot(op.x2 - op.x1, op.y2 - op.y1)).join(" ")
+        : undefined;
       return (
         <line
           key={key}
@@ -58,7 +61,8 @@ function renderOps(ops: DrawOp[], colors: ResolvedColors, keyPrefix: string, fon
           stroke={colors[op.stroke]}
           strokeOpacity={op.opacity}
           strokeWidth={op.weight ?? 1}
-          strokeDasharray={op.dashed ? "4 3" : undefined}
+          strokeDasharray={dasharray}
+          strokeLinecap="butt"
         />
       );
     }
@@ -87,6 +91,7 @@ function renderOps(ops: DrawOp[], colors: ResolvedColors, keyPrefix: string, fon
           transform={`translate(${op.x} ${op.y}) scale(${scale})`}
           fill={fillKey ? colors[fillKey] : "none"}
           fillOpacity={fillKey ? op.opacity : undefined}
+          fillRule={op.fillRule}
           stroke={strokeKey ? colors[strokeKey] : "none"}
           strokeOpacity={strokeKey ? op.opacity : undefined}
           strokeWidth={op.weight ?? 1.2}
@@ -173,7 +178,7 @@ export function MotifSwatch({
 }) {
   const w = 72;
   const h = 64;
-  const ops = buildCoverMotif(motif, w / 2, h * 0.55, 28);
+  const ops = buildCoverMotif(motif, w / 2, h / 2, 24);
   return (
     <svg viewBox={`0 0 ${w} ${h}`} className="pattern-swatch-svg motif-swatch-svg" role="img" aria-hidden="true">
       <rect x={0} y={0} width={w} height={h} fill={colors.paper} />
@@ -210,11 +215,15 @@ export function UnitPreview({ design }: { design: PreviewDesign }) {
   );
   const colors = resolveColors(design.paletteId, design.printMode);
   const fontFamily = cssFontStack(design.fontId);
+  // Pad the viewBox so edge strokes (cut ticks + fold ends) aren't clipped by
+  // the preview's CSS drop-shadow filter, which rasterizes to the SVG box.
+  const edgePad = 3;
   return (
     <svg
-      viewBox={`0 0 ${plan.size.w} ${plan.size.h}`}
+      viewBox={`${-edgePad} ${-edgePad} ${plan.size.w + edgePad * 2} ${plan.size.h + edgePad * 2}`}
       className="unit-svg"
       data-shape={design.shape}
+      overflow="visible"
       role="img"
       aria-label="Bookmark preview"
     >
@@ -255,6 +264,19 @@ export function SheetPreview({ design }: { design: PreviewDesign }) {
           {renderOps(plan.ops, colors, `s${i}`, fontFamily)}
         </g>
       ))}
+      {sheet.footerHeight > 0 ? (
+        <text
+          x={sheet.margin}
+          y={sheet.page.h - 8}
+          fontSize={7}
+          fill={colors.secondary}
+          fontFamily={fontFamily}
+        >
+          {design.shape === "corner"
+            ? "Print at 100% · Cut outer squares · Fold 1 then 2"
+            : "Print at 100% · Fan-fold numbered lines"}
+        </text>
+      ) : null}
     </svg>
   );
 }

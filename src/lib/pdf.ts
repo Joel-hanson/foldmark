@@ -1,11 +1,20 @@
 import {
   PDFDocument,
+  PDFOperator,
+  PDFOperatorNames,
+  appendBezierCurve,
+  closePath,
+  lineTo,
+  moveTo,
   rgb,
   clip,
   endPath,
   popGraphicsState,
   pushGraphicsState,
   rectangle,
+  scale as pdfScale,
+  setFillingColor,
+  translate,
   type PDFFont,
   type PDFImage,
   type PDFPage,
@@ -13,9 +22,59 @@ import {
 import fontkit from "@pdf-lib/fontkit";
 import type { DesignState } from "./types";
 import { resolveColors, type ResolvedColors } from "./colors";
-import { buildUnitPlan, type DrawOp } from "./unitPlan";
+import { buildUnitPlan, fittedDashPattern, type DrawOp } from "./unitPlan";
 import { computeSheet } from "./sheet";
 import { getFontFiles, loadBookmarkFontBytes } from "./bookmarkFont";
+
+const fillEvenOdd = () => PDFOperator.of(PDFOperatorNames.FillEvenOdd);
+
+/**
+ * Motif logos need evenodd fills; pdf-lib's drawSvgPath always uses nonzero.
+ * Supports the absolute M/L/C/Z commands used by smoothed motif paths.
+ */
+function motifPathOps(d: string): PDFOperator[] {
+  const tokens = d.match(/[MmLlCcZz]|[-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?/g) ?? [];
+  const ops: PDFOperator[] = [];
+  let i = 0;
+  let cmd = "";
+  while (i < tokens.length) {
+    const t = tokens[i];
+    if (/^[MmLlCcZz]$/.test(t)) {
+      cmd = t;
+      i += 1;
+      if (cmd === "Z" || cmd === "z") ops.push(closePath());
+      continue;
+    }
+    if (cmd === "M" || cmd === "L") {
+      const x = Number(t);
+      const y = Number(tokens[i + 1]);
+      i += 2;
+      ops.push(cmd === "M" ? moveTo(x, y) : lineTo(x, y));
+      if (cmd === "M") cmd = "L";
+    } else if (cmd === "m" || cmd === "l") {
+      const x = Number(t);
+      const y = Number(tokens[i + 1]);
+      i += 2;
+      ops.push(cmd === "m" ? moveTo(x, y) : lineTo(x, y));
+      if (cmd === "m") cmd = "l";
+    } else if (cmd === "C") {
+      const x1 = Number(t);
+      const y1 = Number(tokens[i + 1]);
+      const x2 = Number(tokens[i + 2]);
+      const y2 = Number(tokens[i + 3]);
+      const x = Number(tokens[i + 4]);
+      const y = Number(tokens[i + 5]);
+      i += 6;
+      ops.push(appendBezierCurve(x1, y1, x2, y2, x, y));
+    } else if (cmd === "c") {
+      // Relative cubics unused by motifs; skip safely.
+      i += 6;
+    } else {
+      i += 1;
+    }
+  }
+  return ops;
+}
 
 function hexToRgb(hex: string) {
   const h = hex.replace("#", "");
@@ -40,10 +99,9 @@ function drawDashedLine(
   const dx = x2 - x1;
   const dy = y2 - y1;
   const len = Math.hypot(dx, dy) || 1;
-  const dash = 4;
-  const gap = 3;
+  const [dash, gap] = fittedDashPattern(len);
   let d = 0;
-  while (d < len) {
+  while (d < len - 1e-6) {
     const a = d / len;
     const b = Math.min(d + dash, len) / len;
     page.drawLine({
@@ -141,20 +199,34 @@ function drawOpsForUnit(
       const scale = op.scale ?? 1;
       const fillKey = op.fill && op.fill !== "none" ? op.fill : null;
       const strokeKey = op.stroke ?? null;
-      // pdf-lib flips SVG Y for us; pass the unit-space origin flipped into PDF Y.
-      page.drawSvgPath(op.d, {
-        x: originX + op.x,
-        y: flipY(op.y),
-        scale,
-        ...(fillKey ? { color: colorFor(colors, fillKey), opacity: op.opacity } : {}),
-        ...(strokeKey
-          ? {
-              borderColor: colorFor(colors, strokeKey),
-              borderWidth: op.weight ?? 1.2,
-              borderOpacity: op.opacity,
-            }
-          : {}),
-      });
+      const x = originX + op.x;
+      const y = flipY(op.y);
+      // pdf-lib flips SVG Y via scale(s, -s); pass unit-space origin flipped into PDF Y.
+      if (op.fillRule === "evenodd" && fillKey && !strokeKey) {
+        page.pushOperators(
+          pushGraphicsState(),
+          translate(x, y),
+          pdfScale(scale, -scale),
+          setFillingColor(colorFor(colors, fillKey)),
+          ...motifPathOps(op.d),
+          fillEvenOdd(),
+          popGraphicsState(),
+        );
+      } else {
+        page.drawSvgPath(op.d, {
+          x,
+          y,
+          scale,
+          ...(fillKey ? { color: colorFor(colors, fillKey), opacity: op.opacity } : {}),
+          ...(strokeKey
+            ? {
+                borderColor: colorFor(colors, strokeKey),
+                borderWidth: op.weight ?? 1.2,
+                borderOpacity: op.opacity,
+              }
+            : {}),
+        });
+      }
     } else if (op.kind === "image") {
       const img = images.get(op.href);
       if (!img) continue;
@@ -240,6 +312,20 @@ export async function buildBookmarkPdf(design: DesignState): Promise<Uint8Array>
     const originX = pos.x;
     const originYBottom = sheet.page.h - (pos.y + plan.size.h);
     drawOpsForUnit(page, plan.ops, originX, originYBottom, plan.size.h, colors, fonts, images);
+  }
+
+  if (sheet.footerHeight > 0) {
+    const tip =
+      design.shape === "corner"
+        ? "Print at 100% / Actual size  ·  Cut outer squares  ·  Fold 1 then 2 into a pocket"
+        : "Print at 100% / Actual size  ·  Fan-fold the numbered lines";
+    page.drawText(tip, {
+      x: sheet.margin,
+      y: 10,
+      size: 7,
+      font: fonts.regular,
+      color: colorFor(colors, "secondary"),
+    });
   }
 
   return doc.save();

@@ -8,8 +8,8 @@ export default function manifest(): MetadataRoute.Manifest {
       "Pick a shape, type your text, and print a real bookmark at home. A4, Letter, A5, Legal — color or black & white.",
     start_url: "/",
     display: "standalone",
-    background_color: "#eef0ec",
-    theme_color: "#2c4a3e",
+    background_color: "#f9f8f3",
+    theme_color: "#20252b",
     orientation: "any",
     categories: ["productivity", "lifestyle"],
     icons: [

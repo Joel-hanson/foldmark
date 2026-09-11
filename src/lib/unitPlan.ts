@@ -68,6 +68,7 @@ export type DrawOp =
       scale?: number;
       stroke?: "ink" | "mark" | "accent";
       fill?: "paper" | "accent" | "secondary" | "none";
+      fillRule?: "nonzero" | "evenodd";
       weight?: number;
       opacity?: number;
     }
@@ -146,6 +147,18 @@ function hash01(seed: number) {
  * to the same string before they ever reach the DOM. */
 function r2(n: number) {
   return Math.round(n * 100) / 100;
+}
+
+/**
+ * Dash + gap sized so a dashed stroke starts and ends on a dash.
+ * A fixed "4 3" pattern leaves a gap at the far end of long segments
+ * (corner diagonals are ~305pt), so fold lines look short of the cut ticks.
+ */
+export function fittedDashPattern(length: number, dash = 4, idealGap = 3): [number, number] {
+  const len = Math.max(length, dash);
+  const gaps = Math.max(1, Math.round((len - dash) / (dash + idealGap)));
+  const gap = r2(Math.max(0.5, (len - (gaps + 1) * dash) / gaps));
+  return [dash, gap];
 }
 
 function pushSpiral(
@@ -734,9 +747,28 @@ function buildCornerPlan(
   const cx = w / 2;
   const cy = h / 2;
   const sizes = preferredSizes(fontSize, title, "corner");
+  const tick = 10;
   const ops: DrawOp[] = [
     { kind: "rect", x: 0, y: 0, w, h, fill: "paper", stroke: "ink" },
     ...buildSurfaceOps(w, h, surface),
+    // Cut ticks at each corner — solid outer square is the cut line.
+    { kind: "line", x1: 0, y1: tick, x2: 0, y2: 0, stroke: "ink", weight: 1.6 },
+    { kind: "line", x1: 0, y1: 0, x2: tick, y2: 0, stroke: "ink", weight: 1.6 },
+    { kind: "line", x1: w - tick, y1: 0, x2: w, y2: 0, stroke: "ink", weight: 1.6 },
+    { kind: "line", x1: w, y1: 0, x2: w, y2: tick, stroke: "ink", weight: 1.6 },
+    { kind: "line", x1: w, y1: h - tick, x2: w, y2: h, stroke: "ink", weight: 1.6 },
+    { kind: "line", x1: w, y1: h, x2: w - tick, y2: h, stroke: "ink", weight: 1.6 },
+    { kind: "line", x1: tick, y1: h, x2: 0, y2: h, stroke: "ink", weight: 1.6 },
+    { kind: "line", x1: 0, y1: h, x2: 0, y2: h - tick, stroke: "ink", weight: 1.6 },
+    {
+      kind: "text",
+      x: cx,
+      y: 12,
+      text: "CUT outer square",
+      size: 7,
+      color: "mark",
+      align: "center",
+    },
     { kind: "line", x1: 0, y1: 0, x2: w, y2: h, stroke: "mark", dashed: true },
     { kind: "line", x1: w, y1: 0, x2: 0, y2: h, stroke: "mark", dashed: true },
     // Fold reference marks, placed at each quadrant's centroid — always
@@ -804,7 +836,18 @@ function buildAccordionPlan(
   const foldClearY = Math.max(12, Math.min(cellH * 0.16, sizes.title * 1.0));
   const edgeClear = Math.max(22, Math.min(cellH * 0.22, sizes.title * 1.35));
 
-  const ops: DrawOp[] = [{ kind: "rect", x: 0, y: 0, w, h, fill: "paper", stroke: "ink" }];
+  const ops: DrawOp[] = [
+    { kind: "rect", x: 0, y: 0, w, h, fill: "paper", stroke: "ink" },
+    {
+      kind: "text",
+      x: w - 10,
+      y: 14,
+      text: "Print at 100% · Actual size",
+      size: 7,
+      color: "mark",
+      align: "right",
+    },
+  ];
 
   if (surface.bgImage) {
     ops.push({
@@ -985,7 +1028,7 @@ export function buildUnitPlan(
   paperSize: PaperSize,
   bgImage?: string | null,
   fontSize: FontSizeId = "md",
-  motif: MotifId = "panda",
+  motif: MotifId = "none",
   accordionPanels?: AccordionPanels,
   accordionDirection: AccordionDirection = "vertical",
 ): UnitPlan {
